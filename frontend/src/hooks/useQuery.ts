@@ -1,40 +1,68 @@
-import { useCallback } from "react";
-import apiClient from "../lib/api";
+import { useState } from "react";
+import axios from "axios";
 import { useAppStore } from "../store";
 
+// ✅ This reads NEXT_PUBLIC_API_URL from Vercel env vars
+// Falls back to localhost for local development
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+const api = axios.create({
+  baseURL: API_BASE,
+  headers: {
+    "Content-Type": "application/json",
+  },
+  timeout: 30000, // 30s — important for Render free tier cold starts
+});
+
 export function useQuery() {
-  const { setLoading, setError, addQueryResult, setMetrics } = useAppStore();
+  const [loading, setLoading] = useState(false);
+  const { setMetrics, addToHistory } = useAppStore();
 
-  const submitQuery = useCallback(
-    async (query: string, context?: string) => {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await apiClient.query({ query, context });
-        addQueryResult(res.data);
-
-        // Refresh metrics after query
-        const mRes = await apiClient.metrics();
-        setMetrics(mRes.data);
-
-        return res.data;
-      } catch (e: any) {
-        const msg = e?.response?.data?.detail || e.message || "Unknown error";
-        setError(msg);
-        return null;
-      } finally {
-        setLoading(false);
-      }
-    },
-    [setLoading, setError, addQueryResult, setMetrics]
-  );
-
-  const loadMetrics = useCallback(async () => {
+  const submitQuery = async (query: string) => {
+    setLoading(true);
     try {
-      const res = await apiClient.metrics();
-      setMetrics(res.data);
-    } catch {}
-  }, [setMetrics]);
+      const res = await api.post("/api/query", { query });
+      addToHistory(res.data);
+      return res.data;
+    } catch (err: any) {
+      const message =
+        err.response?.data?.detail ||
+        err.message ||
+        "Request failed";
+      throw new Error(message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  return { submitQuery, loadMetrics };
+  const loadMetrics = async () => {
+    try {
+      const res = await api.get("/api/metrics");
+      setMetrics(res.data);
+    } catch (err) {
+      console.error("Failed to load metrics:", err);
+    }
+  };
+
+  const simulateAttack = async (attackType: string, query: string) => {
+    setLoading(true);
+    try {
+      const res = await api.post("/api/attacks/simulate", {
+        attack_type: attackType,
+        query,
+      });
+      addToHistory(res.data);
+      return res.data;
+    } catch (err: any) {
+      const message =
+        err.response?.data?.detail ||
+        err.message ||
+        "Attack simulation failed";
+      throw new Error(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { submitQuery, loadMetrics, simulateAttack, loading };
 }
