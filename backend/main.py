@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import uvicorn
+import os
 
 from routers import health, query, attacks, metrics
 from ml.bert_classifier import BERTClassifier
@@ -36,9 +37,19 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# ── CORS ──────────────────────────────────────────────────────────────────────
+# Read allowed origins from env so you can extend without code changes.
+# On Render, set:  ALLOWED_ORIGINS=https://your-app.vercel.app
+# Locally it falls back to the two localhost addresses.
+_raw_origins = os.getenv(
+    "ALLOWED_ORIGINS",
+    "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173"
+)
+origins = [o.strip() for o in _raw_origins.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -49,5 +60,10 @@ app.include_router(query.router, prefix="/api", tags=["Query"])
 app.include_router(attacks.router, prefix="/api", tags=["Attacks"])
 app.include_router(metrics.router, prefix="/api", tags=["Metrics"])
 
+# ── Entry point ───────────────────────────────────────────────────────────────
+# Render injects $PORT automatically; locally defaults to 8000.
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    port = int(os.getenv("PORT", 8000))
+    # reload=True only makes sense in local dev — never in production
+    debug = os.getenv("ENV", "production") == "development"
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=debug)
