@@ -12,6 +12,12 @@ This project addresses that problem head-on. It's a real-time security dashboard
 
 ---
 
+## Live Demo
+- Frontend: [https://otc-graph-1.onrender.com]
+- Backend: [https://otc-graph.onrender.com]
+
+---
+
 ## 🏗️ Architecture
 
 ```
